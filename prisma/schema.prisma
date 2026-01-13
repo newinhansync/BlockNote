@@ -1,0 +1,146 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Auth models
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  name          String?
+  password      String
+  role          Role      @default(VIEWER)
+  comments      Comment[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@map("users")
+}
+
+enum Role {
+  ADMIN
+  VIEWER
+}
+
+// Content models
+model Course {
+  id           String         @id @default(uuid())
+  title        String
+  description  String?
+  isPublished  Boolean        @default(false)
+  publishedAt  DateTime?
+  curriculums  Curriculum[]
+  progress     UserProgress[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@map("courses")
+}
+
+model Curriculum {
+  id        String   @id @default(uuid())
+  title     String
+  order     Int      @default(0)
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId  String
+  pages     Page[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([courseId])
+  @@index([courseId, order])
+  @@map("curriculums")
+}
+
+model Page {
+  id               String        @id @default(uuid())
+  title            String
+  content          Json          @default("[]")
+  isPublished      Boolean       @default(false)
+  publishedContent Json?
+  publishedAt      DateTime?
+  likeCount        Int           @default(0)
+  order            Int           @default(0)
+  curriculum       Curriculum    @relation(fields: [curriculumId], references: [id], onDelete: Cascade)
+  curriculumId     String
+  versions         PageVersion[]
+  comments         Comment[]
+  likes            PageLike[]
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([curriculumId])
+  @@index([curriculumId, order])
+  @@map("pages")
+}
+
+model PageVersion {
+  id        String   @id @default(uuid())
+  content   Json
+  page      Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  pageId    String
+  createdAt DateTime @default(now())
+
+  @@index([pageId])
+  @@index([pageId, createdAt])
+  @@map("page_versions")
+}
+
+// Comments/Feedback model
+model Comment {
+  id        String    @id @default(uuid())
+  content   String
+  resolved  Boolean   @default(false)
+  page      Page      @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  pageId    String
+  author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  authorId  String
+  parentId  String?
+  parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[] @relation("CommentReplies")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([pageId])
+  @@index([authorId])
+  @@index([parentId])
+  @@map("comments")
+}
+
+// Page likes model
+model PageLike {
+  id        String   @id @default(uuid())
+  page      Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  pageId    String
+  userId    String   // Can be session ID for anonymous users
+  createdAt DateTime @default(now())
+
+  @@unique([pageId, userId])
+  @@index([pageId])
+  @@index([userId])
+  @@map("page_likes")
+}
+
+// User learning progress model
+model UserProgress {
+  id             String   @id @default(uuid())
+  userId         String
+  course         Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId       String
+  completedPages String[] // Array of completed page IDs
+  lastPageId     String?  // Last viewed page ID
+  progress       Float    @default(0) // Progress percentage (0-100)
+  updatedAt      DateTime @updatedAt
+
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@index([courseId])
+  @@map("user_progress")
+}
