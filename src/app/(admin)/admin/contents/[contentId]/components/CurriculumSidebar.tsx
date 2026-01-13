@@ -19,7 +19,7 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import { Plus, FolderPlus, FilePlus, ChevronDown, Folder, FileText } from 'lucide-react'
+import { Plus, FolderPlus, FilePlus, Folder, FileText } from 'lucide-react'
 import { ContextMenu, ContextMenuItem, ContextMenuDivider } from '@/components/ui/ContextMenu'
 import { CurriculumNode, CurriculumItem, TreeContextMenuState } from './TreeView'
 import { Edit, Copy, Trash2 } from 'lucide-react'
@@ -28,10 +28,12 @@ interface CurriculumSidebarProps {
   contentId: string
   curriculums: CurriculumItem[]
   selectedPageId: string | null
+  selectedCurriculumId: string | null
   onSelectPage: (pageId: string) => void
+  onSelectCurriculum: (curriculumId: string | null) => void
   onCurriculumsChange: (curriculums: CurriculumItem[]) => void
   onAddCurriculum: () => void
-  onAddPage: (curriculumId: string) => void
+  onAddPage: (curriculumId: string, afterPageId?: string) => void
   onRenameCurriculum: (curriculumId: string, title: string) => void
   onRenamePage: (pageId: string, title: string) => void
   onDuplicateCurriculum: (curriculumId: string) => void
@@ -47,7 +49,9 @@ export function CurriculumSidebar({
   contentId,
   curriculums,
   selectedPageId,
+  selectedCurriculumId,
   onSelectPage,
+  onSelectCurriculum,
   onCurriculumsChange,
   onAddCurriculum,
   onAddPage,
@@ -153,12 +157,13 @@ export function CurriculumSidebar({
       return
     }
 
-    // Page dropped on curriculum (move to that curriculum)
-    if (activeType === 'page' && over.id.toString().startsWith('droppable-')) {
+    // Page dropped on curriculum header or empty drop zone (move to that curriculum)
+    const overId = over.id.toString()
+    if (activeType === 'page' && (overId.startsWith('droppable-') || overId.startsWith('droppable-empty-'))) {
       const toCurriculumId = over.data.current?.curriculumId
       const fromCurriculumId = active.data.current?.curriculumId
 
-      if (toCurriculumId !== fromCurriculumId) {
+      if (toCurriculumId && toCurriculumId !== fromCurriculumId) {
         onMovePageToCurriculum(active.id as string, fromCurriculumId, toCurriculumId)
       }
     }
@@ -231,39 +236,63 @@ export function CurriculumSidebar({
     return null
   }
 
-  const handleAddPageToCurriculum = (curriculumId: string) => {
-    onAddPage(curriculumId)
+  const handleAddPageToCurriculum = (curriculumId: string, afterPageId?: string) => {
+    onAddPage(curriculumId, afterPageId)
     setShowCurriculumSelector(false)
   }
 
+  // Smart page add: if page is selected, add after it; if curriculum selected, add to it
+  const handleSmartAddPage = () => {
+    if (selectedPageId && selectedCurriculumId) {
+      // Add after the currently selected page
+      handleAddPageToCurriculum(selectedCurriculumId, selectedPageId)
+    } else if (selectedCurriculumId) {
+      // Add to the selected curriculum (at the end)
+      handleAddPageToCurriculum(selectedCurriculumId)
+    } else {
+      // Show dropdown to select curriculum
+      setShowCurriculumSelector(!showCurriculumSelector)
+    }
+  }
+
+  // Check if we can add page directly (have selection)
+  const canAddDirectly = selectedPageId || selectedCurriculumId
+
   return (
-    <aside className="w-64 border-r border-gray-200 flex flex-col bg-gray-50 flex-shrink-0">
+    <aside className="w-64 h-full border-r border-gray-200 flex flex-col bg-gray-50 flex-shrink-0">
       {/* Header with action buttons */}
-      <div className="p-3 border-b border-gray-200 flex gap-2">
+      <div className="px-3 py-2 border-b border-gray-200 flex gap-1.5">
         <button
           onClick={onAddCurriculum}
-          className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+          className="p-2 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
           title="새 커리큘럼 추가"
         >
-          <FolderPlus size={16} />
-          커리큘럼
+          <FolderPlus size={16} className="text-gray-600" />
         </button>
-        <div className="relative flex-1" ref={selectorRef}>
+        <div className="relative" ref={selectorRef}>
           <button
-            onClick={() => setShowCurriculumSelector(!showCurriculumSelector)}
+            onClick={handleSmartAddPage}
             disabled={curriculums.length === 0}
-            className="w-full flex items-center justify-center gap-1 px-3 py-1.5 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            title="커리큘럼 선택 후 페이지 추가"
+            className={`p-2 border rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+              canAddDirectly
+                ? 'bg-blue-50 border-blue-300 hover:bg-blue-100'
+                : 'bg-white border-gray-300 hover:bg-gray-50'
+            }`}
+            title={
+              selectedPageId
+                ? '현재 페이지 뒤에 새 페이지 추가'
+                : selectedCurriculumId
+                  ? '선택된 커리큘럼에 페이지 추가'
+                  : '커리큘럼 선택 후 페이지 추가'
+            }
           >
-            <FilePlus size={16} />
-            페이지
-            <ChevronDown size={14} className={`transition-transform ${showCurriculumSelector ? 'rotate-180' : ''}`} />
+            <FilePlus size={16} className={canAddDirectly ? 'text-blue-600' : 'text-gray-600'} />
           </button>
-          {/* Curriculum Selector Dropdown */}
-          {showCurriculumSelector && curriculums.length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 max-h-48 overflow-y-auto">
+          {/* Curriculum Selector Dropdown - only show when no direct selection available */}
+          {showCurriculumSelector && !canAddDirectly && curriculums.length > 0 && (
+            <div className="absolute top-full left-0 mt-1 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 max-h-48 overflow-y-auto">
               <div className="px-2 py-1 text-xs text-gray-500 border-b border-gray-100">
-                페이지를 추가할 커리큘럼 선택
+                커리큘럼 선택
               </div>
               {curriculums.map((curriculum) => (
                 <button
@@ -300,10 +329,13 @@ export function CurriculumSidebar({
                   key={curriculum.id}
                   curriculum={curriculum}
                   selectedPageId={selectedPageId}
+                  selectedCurriculumId={selectedCurriculumId}
                   editingNodeId={editingNodeId}
                   activeId={activeId}
                   overId={overId}
+                  isDraggingPage={activeDragType === 'page'}
                   onSelectPage={onSelectPage}
+                  onSelectCurriculum={onSelectCurriculum}
                   onCurriculumContextMenu={handleCurriculumContextMenu}
                   onPageContextMenu={handlePageContextMenu}
                   onRenameCurriculum={onRenameCurriculum}

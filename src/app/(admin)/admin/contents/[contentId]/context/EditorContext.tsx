@@ -6,6 +6,12 @@ import { useToast } from '@/components/ui/Toast'
 import { CurriculumItem, PageItem } from '../components/TreeView'
 import { SaveStatus } from '../components/EditorHeader'
 
+interface CollaborationUser {
+  id: string
+  name: string
+  email: string
+}
+
 interface EditorState {
   contentId: string
   title: string
@@ -13,21 +19,24 @@ interface EditorState {
   publishedAt: Date | null
   curriculums: CurriculumItem[]
   selectedPageId: string | null
+  selectedCurriculumId: string | null
   currentPageContent: Block[] | null
   currentPageTitle: string | null
   saveStatus: SaveStatus
   isDirty: boolean
   isLoading: boolean
   hasUnpublishedChanges: boolean
+  user: CollaborationUser
 }
 
 interface EditorContextType extends EditorState {
   setTitle: (title: string) => void
   selectPage: (pageId: string) => void
+  selectCurriculum: (curriculumId: string | null) => void
   setCurrentPageContent: (content: Block[]) => void
   setCurriculums: (curriculums: CurriculumItem[]) => void
   addCurriculum: () => Promise<void>
-  addPage: (curriculumId: string) => Promise<void>
+  addPage: (curriculumId: string, afterPageId?: string) => Promise<void>
   renameCurriculum: (curriculumId: string, title: string) => Promise<void>
   renamePage: (pageId: string, title: string) => Promise<void>
   duplicateCurriculum: (curriculumId: string) => Promise<void>
@@ -53,9 +62,10 @@ interface EditorProviderProps {
     publishedAt: Date | null
     curriculums: CurriculumItem[]
   }
+  user: CollaborationUser
 }
 
-export function EditorProvider({ children, initialData }: EditorProviderProps) {
+export function EditorProvider({ children, initialData, user }: EditorProviderProps) {
   const toast = useToast()
   const [state, setState] = useState<EditorState>({
     contentId: initialData.contentId,
@@ -64,12 +74,14 @@ export function EditorProvider({ children, initialData }: EditorProviderProps) {
     publishedAt: initialData.publishedAt,
     curriculums: initialData.curriculums,
     selectedPageId: null,
+    selectedCurriculumId: null,
     currentPageContent: null,
     currentPageTitle: null,
     saveStatus: 'idle',
     isDirty: false,
     isLoading: false,
     hasUnpublishedChanges: false,
+    user,
   })
 
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -129,17 +141,19 @@ export function EditorProvider({ children, initialData }: EditorProviderProps) {
       saveTimeoutRef.current = null
     }
 
+    // Find the curriculum that contains this page
+    const curriculum = state.curriculums.find((c) =>
+      c.pages.some((p) => p.id === pageId)
+    )
+
     setState((prev) => ({
       ...prev,
       selectedPageId: pageId,
+      selectedCurriculumId: curriculum?.id || null,
       isLoading: true,
     }))
 
     try {
-      const curriculum = state.curriculums.find((c) =>
-        c.pages.some((p) => p.id === pageId)
-      )
-
       if (curriculum) {
         const response = await fetch(
           `/api/courses/${state.contentId}/curriculums/${curriculum.id}/pages/${pageId}`
@@ -173,6 +187,18 @@ export function EditorProvider({ children, initialData }: EditorProviderProps) {
     }))
     scheduleAutoSave()
   }, [scheduleAutoSave])
+
+  // Select curriculum (for adding pages when curriculum has no pages)
+  const selectCurriculum = useCallback((curriculumId: string | null) => {
+    setState((prev) => ({
+      ...prev,
+      selectedCurriculumId: curriculumId,
+      // Clear page selection if selecting curriculum without page
+      selectedPageId: curriculumId ? prev.selectedPageId : null,
+      currentPageContent: curriculumId ? prev.currentPageContent : null,
+      currentPageTitle: curriculumId ? prev.currentPageTitle : null,
+    }))
+  }, [])
 
   const setTitle = useCallback(async (title: string) => {
     try {
@@ -224,7 +250,7 @@ export function EditorProvider({ children, initialData }: EditorProviderProps) {
     }
   }, [state.contentId, state.curriculums.length])
 
-  const addPage = useCallback(async (curriculumId: string) => {
+  const addPage = useCallback(async (curriculumId: string, afterPageId?: string) => {
     try {
       const curriculum = state.curriculums.find((c) => c.id === curriculumId)
       if (!curriculum) return
@@ -243,6 +269,44 @@ export function EditorProvider({ children, initialData }: EditorProviderProps) {
 
       if (response.ok) {
         const newPage = await response.json()
+
+        // If afterPageId is provided, insert after that page
+        if (afterPageId) {
+          const afterPageIndex = curriculum.pages.findIndex((p) => p.id === afterPageId)
+          if (afterPageIndex !== -1) {
+            // Create new pages array with the new page inserted after afterPageId
+            const newPages = [
+              ...curriculum.pages.slice(0, afterPageIndex + 1),
+              newPage,
+              ...curriculum.pages.slice(afterPageIndex + 1),
+            ]
+
+            setState((prev) => ({
+              ...prev,
+              curriculums: prev.curriculums.map((c) =>
+                c.id === curriculumId
+                  ? { ...c, pages: newPages }
+                  : c
+              ),
+              hasUnpublishedChanges: true,
+            }))
+
+            // Reorder pages in the backend
+            await fetch(
+              `/api/courses/${state.contentId}/curriculums/${curriculumId}/pages/reorder`,
+              {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pageIds: newPages.map((p) => p.id) }),
+              }
+            )
+
+            toast.success('페이지가 추가되었습니다')
+            return
+          }
+        }
+
+        // Default: add to end
         setState((prev) => ({
           ...prev,
           curriculums: prev.curriculums.map((c) =>
@@ -392,11 +456,13 @@ export function EditorProvider({ children, initialData }: EditorProviderProps) {
           const wasSelectedPageDeleted = deletedCurriculum?.pages.some(
             (p) => p.id === prev.selectedPageId
           )
+          const wasSelectedCurriculumDeleted = prev.selectedCurriculumId === curriculumId
 
           return {
             ...prev,
             curriculums: prev.curriculums.filter((c) => c.id !== curriculumId),
             selectedPageId: wasSelectedPageDeleted ? null : prev.selectedPageId,
+            selectedCurriculumId: wasSelectedCurriculumDeleted ? null : prev.selectedCurriculumId,
             currentPageContent: wasSelectedPageDeleted ? null : prev.currentPageContent,
             currentPageTitle: wasSelectedPageDeleted ? null : prev.currentPageTitle,
             hasUnpublishedChanges: true,
@@ -620,6 +686,7 @@ export function EditorProvider({ children, initialData }: EditorProviderProps) {
     ...state,
     setTitle,
     selectPage,
+    selectCurriculum,
     setCurrentPageContent,
     setCurriculums,
     addCurriculum,

@@ -13,10 +13,13 @@ import { CurriculumItem } from './types'
 interface CurriculumNodeProps {
   curriculum: CurriculumItem
   selectedPageId: string | null
+  selectedCurriculumId: string | null
   editingNodeId: string | null
   activeId: string | null
   overId: string | null
+  isDraggingPage?: boolean
   onSelectPage: (pageId: string) => void
+  onSelectCurriculum: (curriculumId: string) => void
   onCurriculumContextMenu: (e: MouseEvent, curriculumId: string) => void
   onPageContextMenu: (e: MouseEvent, pageId: string, curriculumId: string) => void
   onRenameCurriculum: (curriculumId: string, title: string) => void
@@ -27,10 +30,13 @@ interface CurriculumNodeProps {
 export function CurriculumNode({
   curriculum,
   selectedPageId,
+  selectedCurriculumId,
   editingNodeId,
   activeId,
   overId,
+  isDraggingPage = false,
   onSelectPage,
+  onSelectCurriculum,
   onCurriculumContextMenu,
   onPageContextMenu,
   onRenameCurriculum,
@@ -54,13 +60,23 @@ export function CurriculumNode({
     },
   })
 
-  // Make curriculum droppable for pages
+  // Make curriculum header droppable for pages
   const { setNodeRef: setDroppableRef, isOver } = useDroppable({
     id: `droppable-${curriculum.id}`,
     data: {
       type: 'curriculum',
       curriculumId: curriculum.id,
     },
+  })
+
+  // Make empty state area droppable for pages (when curriculum has no pages)
+  const { setNodeRef: setEmptyDroppableRef, isOver: isOverEmpty } = useDroppable({
+    id: `droppable-empty-${curriculum.id}`,
+    data: {
+      type: 'curriculum-empty',
+      curriculumId: curriculum.id,
+    },
+    disabled: curriculum.pages.length > 0, // Only enable when empty
   })
 
   const style = {
@@ -81,6 +97,16 @@ export function CurriculumNode({
   }
 
   const isEditingThis = editingNodeId === curriculum.id
+  const isSelectedCurriculum = selectedCurriculumId === curriculum.id && !selectedPageId
+
+  const handleCurriculumClick = (e: MouseEvent) => {
+    // Don't select if clicking on toggle, drag handle, or inline edit
+    const target = e.target as HTMLElement
+    if (target.closest('button') || target.closest('input')) {
+      return
+    }
+    onSelectCurriculum(curriculum.id)
+  }
 
   return (
     <div
@@ -92,7 +118,8 @@ export function CurriculumNode({
       <div
         className={`group flex items-center gap-1 px-2 py-1.5 rounded cursor-pointer transition-colors hover:bg-gray-100 ${
           isOver ? 'bg-blue-50' : ''
-        }`}
+        } ${isSelectedCurriculum ? 'bg-blue-100 ring-1 ring-blue-400' : ''}`}
+        onClick={handleCurriculumClick}
         onContextMenu={handleContextMenu}
         ref={setDroppableRef}
       >
@@ -161,10 +188,30 @@ export function CurriculumNode({
         </div>
       )}
 
-      {/* Empty State */}
+      {/* Empty State / Drop Zone */}
       {isExpanded && curriculum.pages.length === 0 && (
-        <div className="ml-8 py-2 text-xs text-gray-400">
-          페이지가 없습니다
+        <div
+          ref={setEmptyDroppableRef}
+          onClick={() => onSelectCurriculum(curriculum.id)}
+          className={`ml-6 mt-1 py-4 px-2 rounded border-2 border-dashed transition-all cursor-pointer ${
+            isDraggingPage
+              ? isOver || isOverEmpty
+                ? 'border-blue-500 bg-blue-100 text-blue-700 scale-[1.02]'
+                : 'border-blue-300 bg-blue-50 text-blue-600'
+              : isSelectedCurriculum
+                ? 'border-blue-400 bg-blue-50 text-blue-600'
+                : 'border-gray-200 text-gray-400 hover:border-gray-300 hover:bg-gray-50'
+          }`}
+        >
+          <div className="text-xs text-center">
+            {isDraggingPage ? (
+              <span className="font-medium">여기에 페이지를 놓으세요</span>
+            ) : isSelectedCurriculum ? (
+              <span className="font-medium">페이지 추가 버튼을 눌러 페이지를 추가하세요</span>
+            ) : (
+              <span>클릭하여 선택 후 페이지를 추가하세요</span>
+            )}
+          </div>
         </div>
       )}
     </div>

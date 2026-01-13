@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { BookOpen, Home, PenTool, User } from 'lucide-react'
+import { Home, PenTool, User } from 'lucide-react'
 import { auth } from '@/lib/auth'
 import { LogoutButton } from '@/components/auth/LogoutButton'
 
@@ -47,15 +47,6 @@ export default async function AdminLayout({
               >
                 <PenTool size={18} />
                 콘텐츠 저작
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/admin/courses"
-                className="flex items-center gap-2 px-3 py-2 rounded hover:bg-gray-800 transition-colors"
-              >
-                <BookOpen size={18} />
-                콘텐츠 관리 (기존)
               </Link>
             </li>
           </ul>
