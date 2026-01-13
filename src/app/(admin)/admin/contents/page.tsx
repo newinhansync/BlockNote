@@ -78,6 +78,8 @@ export default async function ContentsListPage() {
             <Link
               key={course.id}
               href={`/admin/contents/${course.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
               className="group bg-white rounded-xl border border-gray-200 p-5 hover:border-blue-300 hover:shadow-md transition-all"
             >
               {/* Title */}

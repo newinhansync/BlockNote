@@ -67,7 +67,37 @@
 - [x] PDF 내보내기 (Puppeteer 사용)
 
 ### 3.3 협업
-- [ ] 실시간 편집 (향후 계획)
+
+#### 3.3.1 기반 구축
+- [ ] Yjs 관련 패키지 설치 (yjs, y-websocket, y-indexeddb, y-protocols)
+- [ ] WebSocket 서버 코드 작성 (server/websocket-server.ts)
+- [ ] 서버 실행 스크립트 추가 (npm run ws:dev)
+- [ ] 환경 변수 설정 (WS_PORT, NEXT_PUBLIC_WS_URL)
+
+#### 3.3.2 클라이언트 통합
+- [ ] CollaborativeEditor 컴포넌트 생성
+- [ ] useCollaboration 커스텀 훅 작성
+- [ ] 사용자 presence UI 구현 (커서, 이름, 색상)
+- [ ] 연결 상태 표시 UI
+
+#### 3.3.3 서버 영속성
+- [ ] 데이터베이스 마이그레이션 (YjsDocument, CollabSession 모델)
+- [ ] y-websocket 서버에 PostgreSQL 영속성 레이어 추가
+- [ ] 문서 저장/불러오기 API 구현
+- [ ] 자동 저장 로직 구현 (30초 주기)
+
+#### 3.3.4 인증 및 권한
+- [ ] WebSocket 연결 인증 미들웨어 (JWT 검증)
+- [ ] 페이지별 편집 권한 확인 (ADMIN만 편집)
+- [ ] 세션 추적 및 정리
+
+#### 3.3.5 사용자 경험 향상
+- [ ] ActiveUsers 컴포넌트 (실시간 참여자 목록)
+- [ ] 연결 복구 로직 개선
+- [ ] 오프라인 모드 UI
+- [ ] 동기화 상태 표시
+
+#### 기타 협업 기능
 - [x] 댓글/피드백 ✅ 완료
 - [ ] 변경 알림 (향후 계획)
 
@@ -77,7 +107,12 @@
 |-------|------|------|
 | Phase 1 | MVP 완성 | ✅ 완료 |
 | Phase 2 | 사용자 관리 | ✅ 완료 |
-| Phase 3 | 외부 연동 | ✅ 완료 |
+| Phase 3.1-3.2 | 외부 연동, 내보내기 | ✅ 완료 |
+| Phase 3.3.1 | 실시간 협업 기반 구축 | ⏳ 예정 |
+| Phase 3.3.2 | 클라이언트 협업 통합 | ⏳ 예정 |
+| Phase 3.3.3 | 서버 영속성 | ⏳ 예정 |
+| Phase 3.3.4 | 협업 인증/권한 | ⏳ 예정 |
+| Phase 3.3.5 | 협업 UX 향상 | ⏳ 예정 |
 
 ## 현재 진행 상황
 
@@ -116,5 +151,8 @@
 - [x] 댓글/피드백 기능 (Comment 모델, 답글, 해결 상태)
 
 ### 향후 계획 ⏳
-- 실시간 편집 (Phase 3.3)
-- 변경 알림 (Phase 3.3)
+- 실시간 편집 (Phase 3.3) - 상세 계획 수립 완료 ✅
+  - 계획 문서: `docs/planning/06-realtime-collaboration.md`
+  - 기술 스택: Yjs + y-websocket + y-indexeddb
+  - 5단계 구현 로드맵 정의
+- 변경 알림 (Phase 3.3 이후)

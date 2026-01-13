@@ -14,6 +14,8 @@ interface CurriculumNodeProps {
   curriculum: CurriculumItem
   selectedPageId: string | null
   editingNodeId: string | null
+  activeId: string | null
+  overId: string | null
   onSelectPage: (pageId: string) => void
   onCurriculumContextMenu: (e: MouseEvent, curriculumId: string) => void
   onPageContextMenu: (e: MouseEvent, pageId: string, curriculumId: string) => void
@@ -26,6 +28,8 @@ export function CurriculumNode({
   curriculum,
   selectedPageId,
   editingNodeId,
+  activeId,
+  overId,
   onSelectPage,
   onCurriculumContextMenu,
   onPageContextMenu,
@@ -138,13 +142,15 @@ export function CurriculumNode({
             items={curriculum.pages.map((p) => p.id)}
             strategy={verticalListSortingStrategy}
           >
-            {curriculum.pages.map((page) => (
+            {curriculum.pages.map((page, index) => (
               <PageNode
                 key={page.id}
                 page={page}
                 curriculumId={curriculum.id}
                 isSelected={selectedPageId === page.id}
                 isEditing={editingNodeId === page.id}
+                isDragOver={overId === page.id && activeId !== page.id}
+                isBeingDragged={activeId === page.id}
                 onSelect={() => onSelectPage(page.id)}
                 onContextMenu={(e) => onPageContextMenu(e, page.id, curriculum.id)}
                 onRename={(title) => onRenamePage(page.id, title)}

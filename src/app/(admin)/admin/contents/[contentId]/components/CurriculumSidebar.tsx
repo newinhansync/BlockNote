@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, MouseEvent } from 'react'
+import { useState, MouseEvent, useRef, useEffect } from 'react'
 import {
   DndContext,
   DragEndEvent,
@@ -19,7 +19,7 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import { Plus, FolderPlus, FilePlus } from 'lucide-react'
+import { Plus, FolderPlus, FilePlus, ChevronDown, Folder, FileText } from 'lucide-react'
 import { ContextMenu, ContextMenuItem, ContextMenuDivider } from '@/components/ui/ContextMenu'
 import { CurriculumNode, CurriculumItem, TreeContextMenuState } from './TreeView'
 import { Edit, Copy, Trash2 } from 'lucide-react'
@@ -65,6 +65,20 @@ export function CurriculumSidebar({
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [activeDragType, setActiveDragType] = useState<'curriculum' | 'page' | null>(null)
+  const [showCurriculumSelector, setShowCurriculumSelector] = useState(false)
+  const [overId, setOverId] = useState<string | null>(null)
+  const selectorRef = useRef<HTMLDivElement>(null)
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: Event) => {
+      if (selectorRef.current && !selectorRef.current.contains(event.target as Node)) {
+        setShowCurriculumSelector(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -84,7 +98,8 @@ export function CurriculumSidebar({
   }
 
   const handleDragOver = (event: DragOverEvent) => {
-    // Handle drag over for moving pages between curriculums
+    const { over } = event
+    setOverId(over?.id as string | null)
   }
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -92,6 +107,7 @@ export function CurriculumSidebar({
 
     setActiveId(null)
     setActiveDragType(null)
+    setOverId(null)
 
     if (!over) return
 
@@ -200,10 +216,25 @@ export function CurriculumSidebar({
     closeContextMenu()
   }
 
-  // Find selected curriculum for "Add Page" button
-  const selectedCurriculumId = selectedPageId
-    ? curriculums.find((c) => c.pages.some((p) => p.id === selectedPageId))?.id
-    : curriculums[0]?.id
+  // Find active item for drag overlay
+  const getActiveItem = () => {
+    if (!activeId) return null
+    if (activeDragType === 'curriculum') {
+      return curriculums.find((c) => c.id === activeId)
+    }
+    if (activeDragType === 'page') {
+      for (const curriculum of curriculums) {
+        const page = curriculum.pages.find((p) => p.id === activeId)
+        if (page) return page
+      }
+    }
+    return null
+  }
+
+  const handleAddPageToCurriculum = (curriculumId: string) => {
+    onAddPage(curriculumId)
+    setShowCurriculumSelector(false)
+  }
 
   return (
     <aside className="w-64 border-r border-gray-200 flex flex-col bg-gray-50 flex-shrink-0">
@@ -217,15 +248,37 @@ export function CurriculumSidebar({
           <FolderPlus size={16} />
           커리큘럼
         </button>
-        <button
-          onClick={() => selectedCurriculumId && onAddPage(selectedCurriculumId)}
-          disabled={!selectedCurriculumId}
-          className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          title="선택된 커리큘럼에 페이지 추가"
-        >
-          <FilePlus size={16} />
-          페이지
-        </button>
+        <div className="relative flex-1" ref={selectorRef}>
+          <button
+            onClick={() => setShowCurriculumSelector(!showCurriculumSelector)}
+            disabled={curriculums.length === 0}
+            className="w-full flex items-center justify-center gap-1 px-3 py-1.5 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="커리큘럼 선택 후 페이지 추가"
+          >
+            <FilePlus size={16} />
+            페이지
+            <ChevronDown size={14} className={`transition-transform ${showCurriculumSelector ? 'rotate-180' : ''}`} />
+          </button>
+          {/* Curriculum Selector Dropdown */}
+          {showCurriculumSelector && curriculums.length > 0 && (
+            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 max-h-48 overflow-y-auto">
+              <div className="px-2 py-1 text-xs text-gray-500 border-b border-gray-100">
+                페이지를 추가할 커리큘럼 선택
+              </div>
+              {curriculums.map((curriculum) => (
+                <button
+                  key={curriculum.id}
+                  onClick={() => handleAddPageToCurriculum(curriculum.id)}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-gray-50 transition-colors"
+                >
+                  <Folder size={14} className="text-yellow-500 flex-shrink-0" />
+                  <span className="truncate">{curriculum.title}</span>
+                  <span className="text-xs text-gray-400 ml-auto">{curriculum.pages.length}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Tree View */}
@@ -248,6 +301,8 @@ export function CurriculumSidebar({
                   curriculum={curriculum}
                   selectedPageId={selectedPageId}
                   editingNodeId={editingNodeId}
+                  activeId={activeId}
+                  overId={overId}
                   onSelectPage={onSelectPage}
                   onCurriculumContextMenu={handleCurriculumContextMenu}
                   onPageContextMenu={handlePageContextMenu}
@@ -258,6 +313,26 @@ export function CurriculumSidebar({
               ))}
             </div>
           </SortableContext>
+
+          {/* Drag Overlay - Shows the dragged item */}
+          <DragOverlay>
+            {activeId && activeDragType === 'curriculum' && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg shadow-lg border-2 border-blue-400">
+                <Folder size={16} className="text-yellow-500" />
+                <span className="text-sm font-medium text-gray-700">
+                  {(getActiveItem() as CurriculumItem)?.title}
+                </span>
+              </div>
+            )}
+            {activeId && activeDragType === 'page' && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg shadow-lg border-2 border-blue-400">
+                <FileText size={16} className="text-blue-500" />
+                <span className="text-sm text-gray-700">
+                  {(getActiveItem() as { title: string })?.title}
+                </span>
+              </div>
+            )}
+          </DragOverlay>
         </DndContext>
 
         {curriculums.length === 0 && (
